@@ -35,10 +35,31 @@ style: """
   font-weight: 200
   color: #FFF
   font-size: 18px
-  background: rgba(0,0,0,0.2)
+  background: rgba(0,0,0,0.4)
   padding-left: 20px
   padding-right: 20px
   padding-bottom: 20px
+
+  button + button
+    width: 50%
+
+  button
+    text-align: right
+    font-size: 14px
+    height: 23px
+    position: relative
+    top: -2px
+
+  .deliver-button
+    background-color: #FF851B
+    border: 0
+    color: white
+    font-weight: 600
+
+  .finish-button
+    background-color: #0074D9
+    border: 0
+    font-weight: 600
 
   h1
     margin-bottom: 10px
@@ -54,7 +75,8 @@ style: """
   li
     list-style: none
     padding-top: 5px
-    padding-bottom: 5px
+    min-height: 25px
+    margin-bottom: 5px
 
     a
       vertical-align: top
@@ -92,10 +114,9 @@ style: """
       .point
         display: inline-block
         width: 3px
-        height: 20px
+        height: 25px
         background-color: #39CCCC
         margin-right: 2px
-        margin-top: 1px
 """
 
 update: (output, domEl) ->
@@ -114,7 +135,47 @@ update: (output, domEl) ->
         html += """
           <li>
             <span class="estimate">#{estimate}</span>
-            <span class='status #{story.current_state}'>#{story.current_state}</span>
+        """
+
+        if story.current_state is 'accepted'
+          html += """
+              <span class='status #{story.current_state}'>
+                #{story.current_state}
+              </span>
+          """
+        else if story.current_state is 'delivered'
+          html += """
+              <span class='status'>
+                <button class='accept-button'>Accept</button>
+                <button class='reject-button'>Reject</button>
+              </span>
+          """
+        else if story.current_state is 'finished'
+          html += """
+            <span class='status'>
+              <button class='deliver-button'>
+                Deliver
+              </button>
+            </span>
+          """
+        else if story.current_state is 'started'
+          html += """
+            <span class='status'>
+              <button class='finish-button'>
+                Finish
+              </button>
+            </span>
+          """
+        else if story.current_state is 'unstarted'
+          html += """
+            <span class='status'>
+              <button class='start-button'>
+                Start
+              </button>
+            </span>
+          """
+
+        html += """
             <a href="#{story.url}">#{story.name}</a>
           </li>
         """
