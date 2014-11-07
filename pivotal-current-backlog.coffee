@@ -2,13 +2,13 @@
 # Author: Mike Mclaren <mike.mclaren@sq1.com>
 
 # Your Pivotal Tracker API token.
-token: 'TOKEN'
+token: 'API KEY HERE'
 
 # Your Pivotal Tracker Project ID.
 projectId: 1
 
 # What you want to display as the header of the box.
-projectName: "Project Name"
+projectName: "Project Here Now"
 
 # Five minute default.
 refreshFrequency: 5 * 60 * 1000
@@ -17,7 +17,7 @@ command: ""
 
 # The base template things get inserted into.
 render: () -> """
-  <h1>#{@projectName}</h1>
+  <h1></h1>
   <div class="pivotal-tracker-list">
     <div class="wrapper">
       <ul>
@@ -120,18 +120,18 @@ style: """
 """
 
 update: (output, domEl) ->
-  @._fetch().then (output) =>
-    if !@content
-      @content = $(domEl).find('.wrapper')
+  if !@content
+    @content = $(domEl).find('.wrapper')
 
-    html = ''
+  html = ''
 
-    for iteration in output
-      for story in iteration.stories
-        estimate = ''
-        for num in [story.estimate..1]
-          estimate += "<span class='point'></span>"
-
+  if @projectId is null
+    console.log("no project found")
+    #if there's no projects, get them all
+    @projectName = "Choose a project"
+    @._fetchProjects().then (output) =>
+      for iteration in output
+        console.log("iteration: " + iteration.project_name)
         html += """
           <li>
             <span class="estimate">#{estimate}</span>
@@ -177,12 +177,33 @@ update: (output, domEl) ->
 
         html += """
             <a href="#{story.url}">#{story.name}</a>
+            <span class='status'>#{iteration.project_id}</span>
+            <a href="#{iteration.project_name}">#{iteration.project_name}</a>
           </li>
         """
+        $("h1").html(@projectName)
+        @content.html html
+  else
+    console.log("project found")
+    #if there's a project selected
+    @._fetchStories().then (output) =>
+      for iteration in output
+        for story in iteration.stories
+          estimate = ''
+          for num in [story.estimate..1]
+            estimate += "<span class='point'></span>"
 
-    @content.html html
+      html += """
+        <li>
+          <span class="estimate">#{estimate}</span>
+          <span class='status #{story.current_state}'>#{story.current_state}</span>
+          <a href="#{story.url}">#{story.name}</a>
+        </li>
+      """
+      $("h1").html(@projectName)
+      @content.html html
 
-_fetch: () ->
+_fetchStories: () ->
   defer = new $.Deferred
 
   $.ajax
@@ -191,5 +212,17 @@ _fetch: () ->
       'X-TrackerToken': @token
     success: (data) ->
       defer.resolve data
+
+  return defer.promise()
+
+_fetchProjects: () ->
+  defer = new $.Deferred
+
+  $.ajax
+    url: "https://www.pivotaltracker.com/services/v5/me"
+    headers:
+      'X-TrackerToken': @token
+    success: (data) ->
+      defer.resolve data.projects
 
   return defer.promise()
