@@ -2,22 +2,26 @@
 # Author: Mike Mclaren <mike.mclaren@sq1.com>
 
 # Your Pivotal Tracker API token.
-token: 'TOKEN'
+token: 'API KEY HERE'
 
 # Your Pivotal Tracker Project ID.
-projectId: 1
+projectId: null
 
 # What you want to display as the header of the box.
-projectName: "Project Name"
+projectName: "Project Here Now"
 
-# Five minute default.
-refreshFrequency: 5 * 60 * 1000
+# Refreshes once a second.
+refreshFrequency: 1000
+
+cacheStories: []
+cacheProjects: []
+refreshTime: true
 
 command: ""
 
 # The base template things get inserted into.
 render: () -> """
-  <h1>#{@projectName}</h1>
+  <h1></h1>
   <div class="pivotal-tracker-list">
     <div class="wrapper">
       <ul>
@@ -120,94 +124,151 @@ style: """
 """
 
 update: (output, domEl) ->
-  @._fetch().then (output) =>
-    if !@content
-      @content = $(domEl).find '.wrapper'
+  if !@content
+    @content = $(domEl).find('.wrapper')
 
-    html = """<script type="text/javascript">
-      change = function(t) {
-        storyId = $(t).attr('data-story-id');
-        stateChange = $(t).attr('data-state-change');
+  html = ''
 
-        $.ajax({
-          url: "https://www.pivotaltracker.com/services/v5/projects/#{@projectId}/stories/"+storyId,
-          headers: {
-            'X-TrackerToken': '#{@token}'
-          },
-          type: 'PUT',
-          data: {
-            "current_state": stateChange
-          },
-          success: function(data) {
-          }
-        });
-      };
-    </script>"""
+  @projectId = $('.pivotal-tracker-list').attr('data-project-id') || @projectId
+  @refreshTime = $('.pivotal-tracker-list').attr('data-refresh') || @refreshTime
 
-    for iteration in output
-      for story in iteration.stories
-        estimate = ''
-        for num in [story.estimate..1]
-          estimate += "<span class='point'></span>"
+  html = """<script type="text/javascript">
+    changeState = function(t) {
+      storyId = $(t).attr('data-story-id');
+      stateChange = $(t).attr('data-state-change');
+
+      $.ajax({
+        url: "https://www.pivotaltracker.com/services/v5/projects/#{@projectId}/stories/"+storyId,
+        headers: {
+          'X-TrackerToken': '#{@token}'
+        },
+        type: 'PUT',
+        data: {
+          "current_state": stateChange
+        },
+        success: function(data) {
+          $('.pivotal-tracker-list').attr('data-refresh', true);
+        }
+      });
+    };
+
+    changeProject = function(id) {
+      $('.pivotal-tracker-list').attr('data-project-id', id);
+      $('.pivotal-tracker-list').attr('data-refresh', true);
+    }
+  </script>"""
+
+  if @projectId is null
+    console.log("no project found")
+    #if there's no projects, get them all
+    @projectName = "Choose a project"
+    @._fetchProjects().then (output) =>
+      for project in output
+        console.log project
+        console.log("iteration: " + project.project_name)
 
         html += """
           <li>
-            <span class="estimate">#{estimate}</span>
-        """
-
-        if story.current_state is 'accepted'
-          html += """
-              <span class='status #{story.current_state}'>
-                #{story.current_state}
-              </span>
-          """
-        else if story.current_state is 'delivered'
-          html += """
-              <span class='status'>
-                <button class='accept-button pv-button' data-story-id='#{story.id}'>Accept</button>
-                <button class='reject-button pv-button' data-story-id='#{story.id}'>Reject</button>
-              </span>
-          """
-        else if story.current_state is 'finished'
-          html += """
-            <span class='status'>
-              <button class='deliver-button pv-button' data-story-id='#{story.id}' data-state-change='delivered' onclick='change(this)'>
-                Deliver
-              </button>
-            </span>
-          """
-        else if story.current_state is 'started'
-          html += """
-            <span class='status'>
-              <button class='finish-button pv-button' data-story-id='#{story.id}' data-state-change='finished' onclick='change(this)'>
-                Finish
-              </button>
-            </span>
-          """
-        else if story.current_state is 'unstarted'
-          html += """
-            <span class='status'>
-              <button class='start-button pv-button' data-story-id='#{story.id}' data-state-change='started' onclick='change(this)'>
-                Start
-              </button>
-            </span>
-          """
-
-        html += """
-            <a href="#{story.url}">#{story.name}</a>
+            <span class='status'>#{project.project_id}</span>
+            <a href="https://www.pivotaltracker.com/n/projects/#{project.project_id}" onclick="changeProject(#{project.project_id})">#{project.project_name}</a>
           </li>
         """
+        $(domEl).find("h1").html @projectName
+        @content.find('ul').html html
+  else
+    console.log("project found")
+    #if there's a project selected
+    @._fetchStories().then (output) =>
+      for iteration in output
+        for story in iteration.stories
+          estimate = ''
+          for num in [story.estimate..1]
+            estimate += "<span class='point'></span>"
 
-    @content.html html
+          html += """
+            <li>
+              <span class="estimate">#{estimate}</span>
+          """
 
-_fetch: () ->
+          if story.current_state is 'accepted'
+            html += """
+                <span class='status #{story.current_state}'>
+                  #{story.current_state}
+                </span>
+            """
+          else if story.current_state is 'delivered'
+            html += """
+                <span class='status'>
+                  <button class='accept-button pv-button'
+                  data-story-id='#{story.id}'>Accept</button>
+                  <button class='reject-button pv-button'
+                  data-story-id='#{story.id}'>Reject</button>
+                </span>
+            """
+          else if story.current_state is 'finished'
+            html += """
+              <span class='status'>
+                <button class='deliver-button pv-button'
+                data-story-id='#{story.id}' data-state-change='delivered'
+                onclick='changeState(this)'>
+                  Deliver
+                </button>
+              </span>
+            """
+          else if story.current_state is 'started'
+            html += """
+              <span class='status'>
+                <button class='finish-button pv-button'
+                data-story-id='#{story.id}' data-state-change='finished'
+                onclick='changeState(this)'>
+                  Finish
+                </button>
+              </span>
+            """
+          else if story.current_state is 'unstarted'
+            html += """
+              <span class='status'>
+                <button class='start-button pv-button'
+                data-story-id='#{story.id}'
+                data-state-change='started' onclick='changeState(this)'>
+                  Start
+                </button>
+              </span>
+            """
+
+          html += """<a href="#{story.url}">#{story.name}</a></li>"""
+      $(domEl).find("h1").html(@projectName)
+      @content.find('ul').html html
+
+_fetchStories: () ->
   defer = new $.Deferred
 
-  $.ajax
-    url: "https://www.pivotaltracker.com/services/v5/projects/#{@projectId}/iterations?limit=10&scope=current_backlog"
-    headers:
-      'X-TrackerToken': @token
-    success: (data) ->
-      defer.resolve data
+  if @cacheStories.length is 0 or @refreshTime
+    $.ajax
+      url: "https://www.pivotaltracker.com/services/v5/projects/#{@projectId}/iterations?limit=10&scope=current_backlog"
+      headers:
+        'X-TrackerToken': @token
+      success: (data) =>
+        defer.resolve data
+        @cacheStories = data
+        @refreshTime  = false
+  else
+    defer.resolve @cacheStories
 
+  return defer.promise()
+
+_fetchProjects: () ->
+  defer = new $.Deferred
+
+  if @cacheProjects.length is 0 or @refreshTime
+    $.ajax
+      url: "https://www.pivotaltracker.com/services/v5/me"
+      headers:
+        'X-TrackerToken': @token
+      success: (data) =>
+        defer.resolve data.projects
+        @cacheProjects = data.projects
+        @refreshTime   = false
+  else
+    defer.resolve @cacheProjects
   return defer.promise()
