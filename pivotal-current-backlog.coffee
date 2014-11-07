@@ -132,76 +132,99 @@ update: (output, domEl) ->
     @._fetchProjects().then (output) =>
       for iteration in output
         console.log("iteration: " + iteration.project_name)
+
         html += """
           <li>
-            <span class="estimate">#{estimate}</span>
-        """
-
-        if story.current_state is 'accepted'
-          html += """
-              <span class='status #{story.current_state}'>
-                #{story.current_state}
-              </span>
-          """
-        else if story.current_state is 'delivered'
-          html += """
-              <span class='status'>
-                <button class='accept-button'>Accept</button>
-                <button class='reject-button'>Reject</button>
-              </span>
-          """
-        else if story.current_state is 'finished'
-          html += """
-            <span class='status'>
-              <button class='deliver-button'>
-                Deliver
-              </button>
-            </span>
-          """
-        else if story.current_state is 'started'
-          html += """
-            <span class='status'>
-              <button class='finish-button'>
-                Finish
-              </button>
-            </span>
-          """
-        else if story.current_state is 'unstarted'
-          html += """
-            <span class='status'>
-              <button class='start-button'>
-                Start
-              </button>
-            </span>
-          """
-
-        html += """
-            <a href="#{story.url}">#{story.name}</a>
             <span class='status'>#{iteration.project_id}</span>
-            <a href="#{iteration.project_name}">#{iteration.project_name}</a>
+            <a href="#{iteration.project_url}">#{iteration.project_name}</a>
           </li>
         """
-        $("h1").html(@projectName)
-        @content.html html
+        $(domEl).find("h1").html(@projectName)
+        @content.find('ul').html html
   else
     console.log("project found")
     #if there's a project selected
     @._fetchStories().then (output) =>
+      html = """<script type="text/javascript">
+        change = function(t) {
+          storyId = $(t).attr('data-story-id');
+          stateChange = $(t).attr('data-state-change');
+
+          $.ajax({
+            url: "https://www.pivotaltracker.com/services/v5/projects/#{@projectId}/stories/"+storyId,
+            headers: {
+              'X-TrackerToken': '#{@token}'
+            },
+            type: 'PUT',
+            data: {
+              "current_state": stateChange
+            },
+            success: function(data) {
+            }
+          });
+        };
+      </script>"""
+
       for iteration in output
         for story in iteration.stories
           estimate = ''
           for num in [story.estimate..1]
             estimate += "<span class='point'></span>"
 
-      html += """
-        <li>
-          <span class="estimate">#{estimate}</span>
-          <span class='status #{story.current_state}'>#{story.current_state}</span>
-          <a href="#{story.url}">#{story.name}</a>
-        </li>
-      """
-      $("h1").html(@projectName)
-      @content.html html
+          html += """
+            <li>
+              <span class="estimate">#{estimate}</span>
+          """
+
+          if story.current_state is 'accepted'
+            html += """
+                <span class='status #{story.current_state}'>
+                  #{story.current_state}
+                </span>
+            """
+          else if story.current_state is 'delivered'
+            html += """
+                <span class='status'>
+                  <button class='accept-button pv-button'
+                  data-story-id='#{story.id}'>Accept</button>
+                  <button class='reject-button pv-button'
+                  data-story-id='#{story.id}'>Reject</button>
+                </span>
+            """
+          else if story.current_state is 'finished'
+            html += """
+              <span class='status'>
+                <button class='deliver-button pv-button'
+                data-story-id='#{story.id}' data-state-change='delivered'
+                onclick='change(this)'>
+                  Deliver
+                </button>
+              </span>
+            """
+          else if story.current_state is 'started'
+            html += """
+              <span class='status'>
+                <button class='finish-button pv-button'
+                data-story-id='#{story.id}' data-state-change='finished'
+                onclick='change(this)'>
+                  Finish
+                </button>
+              </span>
+            """
+          else if story.current_state is 'unstarted'
+            html += """
+              <span class='status'>
+                <button class='start-button pv-button'
+                data-story-id='#{story.id}'
+                data-state-change='started' onclick='change(this)'>
+                  Start
+                </button>
+              </span>
+            """
+
+          html += """<a href="#{story.url}">#{story.name}</a></li>"""
+      $(domEl).find("h1").html(@projectName)
+      @content.find('ul').html html
 
 _fetchStories: () ->
   defer = new $.Deferred
