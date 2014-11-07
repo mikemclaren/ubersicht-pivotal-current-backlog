@@ -5,13 +5,17 @@
 token: 'API KEY HERE'
 
 # Your Pivotal Tracker Project ID.
-projectId: 1
+projectId: null
 
 # What you want to display as the header of the box.
 projectName: "Project Here Now"
 
-# Five minute default.
-refreshFrequency: 5 * 60 * 1000
+# Refreshes once a second.
+refreshFrequency: 1000
+
+cacheStories: []
+cacheProjects: []
+refreshTime: true
 
 command: ""
 
@@ -125,46 +129,56 @@ update: (output, domEl) ->
 
   html = ''
 
+  @projectId = $('.pivotal-tracker-list').attr('data-project-id') || @projectId
+  @refreshTime = $('.pivotal-tracker-list').attr('data-refresh') || @refreshTime
+
+  html = """<script type="text/javascript">
+    changeState = function(t) {
+      storyId = $(t).attr('data-story-id');
+      stateChange = $(t).attr('data-state-change');
+
+      $.ajax({
+        url: "https://www.pivotaltracker.com/services/v5/projects/#{@projectId}/stories/"+storyId,
+        headers: {
+          'X-TrackerToken': '#{@token}'
+        },
+        type: 'PUT',
+        data: {
+          "current_state": stateChange
+        },
+        success: function(data) {
+          $('.pivotal-tracker-list').attr('data-refresh', true);
+        }
+      });
+    };
+
+    changeProject = function(id) {
+      $('.pivotal-tracker-list').attr('data-project-id', id);
+      $('.pivotal-tracker-list').attr('data-refresh', true);
+    }
+  </script>"""
+
   if @projectId is null
     console.log("no project found")
     #if there's no projects, get them all
     @projectName = "Choose a project"
     @._fetchProjects().then (output) =>
-      for iteration in output
-        console.log("iteration: " + iteration.project_name)
+      for project in output
+        console.log project
+        console.log("iteration: " + project.project_name)
 
         html += """
           <li>
-            <span class='status'>#{iteration.project_id}</span>
-            <a href="#{iteration.project_url}">#{iteration.project_name}</a>
+            <span class='status'>#{project.project_id}</span>
+            <a href="https://www.pivotaltracker.com/n/projects/#{project.project_id}" onclick="changeProject(#{project.project_id})">#{project.project_name}</a>
           </li>
         """
-        $(domEl).find("h1").html(@projectName)
+        $(domEl).find("h1").html @projectName
         @content.find('ul').html html
   else
     console.log("project found")
     #if there's a project selected
     @._fetchStories().then (output) =>
-      html = """<script type="text/javascript">
-        change = function(t) {
-          storyId = $(t).attr('data-story-id');
-          stateChange = $(t).attr('data-state-change');
-
-          $.ajax({
-            url: "https://www.pivotaltracker.com/services/v5/projects/#{@projectId}/stories/"+storyId,
-            headers: {
-              'X-TrackerToken': '#{@token}'
-            },
-            type: 'PUT',
-            data: {
-              "current_state": stateChange
-            },
-            success: function(data) {
-            }
-          });
-        };
-      </script>"""
-
       for iteration in output
         for story in iteration.stories
           estimate = ''
@@ -196,7 +210,7 @@ update: (output, domEl) ->
               <span class='status'>
                 <button class='deliver-button pv-button'
                 data-story-id='#{story.id}' data-state-change='delivered'
-                onclick='change(this)'>
+                onclick='changeState(this)'>
                   Deliver
                 </button>
               </span>
@@ -206,7 +220,7 @@ update: (output, domEl) ->
               <span class='status'>
                 <button class='finish-button pv-button'
                 data-story-id='#{story.id}' data-state-change='finished'
-                onclick='change(this)'>
+                onclick='changeState(this)'>
                   Finish
                 </button>
               </span>
@@ -216,7 +230,7 @@ update: (output, domEl) ->
               <span class='status'>
                 <button class='start-button pv-button'
                 data-story-id='#{story.id}'
-                data-state-change='started' onclick='change(this)'>
+                data-state-change='started' onclick='changeState(this)'>
                   Start
                 </button>
               </span>
@@ -229,23 +243,32 @@ update: (output, domEl) ->
 _fetchStories: () ->
   defer = new $.Deferred
 
-  $.ajax
-    url: "https://www.pivotaltracker.com/services/v5/projects/#{@projectId}/iterations?limit=10&scope=current_backlog"
-    headers:
-      'X-TrackerToken': @token
-    success: (data) ->
-      defer.resolve data
+  if @cacheStories.length is 0 or @refreshTime
+    $.ajax
+      url: "https://www.pivotaltracker.com/services/v5/projects/#{@projectId}/iterations?limit=10&scope=current_backlog"
+      headers:
+        'X-TrackerToken': @token
+      success: (data) =>
+        defer.resolve data
+        @cacheStories = data
+        @refreshTime  = false
+  else
+    defer.resolve @cacheStories
 
   return defer.promise()
 
 _fetchProjects: () ->
   defer = new $.Deferred
 
-  $.ajax
-    url: "https://www.pivotaltracker.com/services/v5/me"
-    headers:
-      'X-TrackerToken': @token
-    success: (data) ->
-      defer.resolve data.projects
-
+  if @cacheProjects.length is 0 or @refreshTime
+    $.ajax
+      url: "https://www.pivotaltracker.com/services/v5/me"
+      headers:
+        'X-TrackerToken': @token
+      success: (data) =>
+        defer.resolve data.projects
+        @cacheProjects = data.projects
+        @refreshTime   = false
+  else
+    defer.resolve @cacheProjects
   return defer.promise()
