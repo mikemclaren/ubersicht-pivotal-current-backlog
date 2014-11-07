@@ -122,9 +122,27 @@ style: """
 update: (output, domEl) ->
   @._fetch().then (output) =>
     if !@content
-      @content = $(domEl).find('.wrapper')
+      @content = $(domEl).find '.wrapper'
 
-    html = ''
+    html = """<script type="text/javascript">
+      change = function(t) {
+        storyId = $(t).attr('data-story-id');
+        stateChange = $(t).attr('data-state-change');
+
+        $.ajax({
+          url: "https://www.pivotaltracker.com/services/v5/projects/#{@projectId}/stories/"+storyId,
+          headers: {
+            'X-TrackerToken': '#{@token}'
+          },
+          type: 'PUT',
+          data: {
+            "current_state": stateChange
+          },
+          success: function(data) {
+          }
+        });
+      };
+    </script>"""
 
     for iteration in output
       for story in iteration.stories
@@ -146,14 +164,14 @@ update: (output, domEl) ->
         else if story.current_state is 'delivered'
           html += """
               <span class='status'>
-                <button class='accept-button'>Accept</button>
-                <button class='reject-button'>Reject</button>
+                <button class='accept-button pv-button' data-story-id='#{story.id}'>Accept</button>
+                <button class='reject-button pv-button' data-story-id='#{story.id}'>Reject</button>
               </span>
           """
         else if story.current_state is 'finished'
           html += """
             <span class='status'>
-              <button class='deliver-button'>
+              <button class='deliver-button pv-button' data-story-id='#{story.id}' data-state-change='delivered' onclick='change(this)'>
                 Deliver
               </button>
             </span>
@@ -161,7 +179,7 @@ update: (output, domEl) ->
         else if story.current_state is 'started'
           html += """
             <span class='status'>
-              <button class='finish-button'>
+              <button class='finish-button pv-button' data-story-id='#{story.id}' data-state-change='finished' onclick='change(this)'>
                 Finish
               </button>
             </span>
@@ -169,7 +187,7 @@ update: (output, domEl) ->
         else if story.current_state is 'unstarted'
           html += """
             <span class='status'>
-              <button class='start-button'>
+              <button class='start-button pv-button' data-story-id='#{story.id}' data-state-change='started' onclick='change(this)'>
                 Start
               </button>
             </span>
